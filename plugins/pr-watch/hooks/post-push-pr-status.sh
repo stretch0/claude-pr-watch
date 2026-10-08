@@ -68,7 +68,7 @@ SHA=$(git -C "$CWD" rev-parse HEAD 2>/dev/null || echo "")
 # Record the pushed branch so stop-pr-gate.sh knows which PRs this session
 # is responsible for.
 if [[ -n "$SESSION_ID" ]] && [[ -n "$BRANCH" ]] && [[ "$BRANCH" != "HEAD" ]]; then
-    STATE_FILE="${TMPDIR:-/tmp}/claude-pr-watch-${SESSION_ID}.tsv"
+    STATE_FILE="${TMPDIR:-/tmp}/claude-pr-watch-plugin-${SESSION_ID}.tsv"
     if ! grep -qsF "$CWD	$BRANCH" "$STATE_FILE" 2>/dev/null; then
         printf '%s\t%s\t%s\n' "$CWD" "$BRANCH" "$(date +%s)" >> "$STATE_FILE" 2>/dev/null || true
     fi

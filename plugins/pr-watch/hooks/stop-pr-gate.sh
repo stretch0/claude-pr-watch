@@ -29,7 +29,7 @@ except Exception:
 [[ -z "$SESSION_ID" ]] && exit 0
 [[ "$STOP_HOOK_ACTIVE" == "true" ]] && exit 0
 
-STATE_FILE="${TMPDIR:-/tmp}/claude-pr-watch-${SESSION_ID}.tsv"
+STATE_FILE="${TMPDIR:-/tmp}/claude-pr-watch-plugin-${SESSION_ID}.tsv"
 [[ -s "$STATE_FILE" ]] || exit 0
 
 # Every surviving line costs a network call on every stop, so lines age out
