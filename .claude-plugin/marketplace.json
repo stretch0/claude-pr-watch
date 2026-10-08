@@ -1,0 +1,16 @@
+{
+  "name": "stretch0",
+  "owner": {
+    "name": "Andrew McCallum"
+  },
+  "metadata": {
+    "description": "Claude Code plugins by stretch0."
+  },
+  "plugins": [
+    {
+      "name": "pr-watch",
+      "source": "./plugins/pr-watch",
+      "description": "Watch the PRs Claude pushes: CI status after every push, a stop gate on red CI, and a /babysit-pr skill for fixing CI and resolving review threads."
+    }
+  ]
+}

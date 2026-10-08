@@ -1,0 +1,11 @@
+{
+  "name": "pr-watch",
+  "version": "0.1.0",
+  "description": "Keeps Claude on the hook for the PRs it pushes: injects CI and conflict status after every push, blocks the session from ending on red CI, and adds a /babysit-pr skill that fixes CI and works through review threads.",
+  "author": {
+    "name": "Andrew McCallum"
+  },
+  "repository": "https://github.com/stretch0/claude-pr-watch",
+  "license": "MIT",
+  "keywords": ["github", "pull-requests", "ci", "code-review", "hooks"]
+}
