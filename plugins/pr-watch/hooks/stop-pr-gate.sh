@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # stop-pr-gate.sh: refuse to end the session while a branch this session
-# pushed has an open PR with failing checks or a merge conflict.
+# pushed has an open PR with failing checks, a merge conflict, or review
+# threads waiting on a reply.
 #
 # Runs as a Stop hook. Reads the per-session state file written by
 # post-push-pr-status.sh. Pending checks never block: the background
@@ -39,6 +40,8 @@ NOW=$(date +%s)
 KEEP=""
 FAILING=""
 CONFLICTED=""
+UNANSWERED=""
+THREAD_COUNTER="$(dirname "$0")/awaiting_review_threads.py"
 
 while IFS=$'\t' read -r DIR BRANCH TS; do
     [[ -d "$DIR" ]] || continue
@@ -88,15 +91,27 @@ print(f\"FAIL\tPR #{pr['number']} ({pr['url']}) failing: {', '.join(bad)}\" if b
         CONFLICT*) CONFLICTED="${CONFLICTED}${VERDICT#CONFLICT	}; " ;;
         FAIL*) FAILING="${FAILING}${VERDICT#FAIL	}; " ;;
     esac
+
+    # Review threads are checked whatever the CI state: a reviewer such as
+    # Copilot often posts while checks are still pending, and nothing else
+    # wakes the session for it.
+    if [[ "$PR_STATE" == "OPEN" ]]; then
+        PR_URL=$(echo "$PR_JSON" | python3 -c "import json, sys; print(json.load(sys.stdin)['url'])" 2>/dev/null || echo "")
+        AWAITING=$(cd "$DIR" && python3 "$THREAD_COUNTER" "$PR_URL" 2>/dev/null || echo "")
+        if [[ "$AWAITING" =~ ^[0-9]+$ ]] && (( AWAITING > 0 )); then
+            PR_NUMBER="${PR_URL##*/}"
+            UNANSWERED="${UNANSWERED}PR #${PR_NUMBER} (${PR_URL}) has ${AWAITING} thread(s), run /pr-watch:babysit-pr ${PR_NUMBER}; "
+        fi
+    fi
 done < <(sort -u "$STATE_FILE")
 
 printf '%b' "$KEEP" > "$STATE_FILE" 2>/dev/null || true
 
-[[ -z "$FAILING" ]] && [[ -z "$CONFLICTED" ]] && exit 0
+[[ -z "$FAILING" ]] && [[ -z "$CONFLICTED" ]] && [[ -z "$UNANSWERED" ]] && exit 0
 
 python3 -c "
 import json, sys
-failing, conflicted = sys.argv[1], sys.argv[2]
+failing, conflicted, unanswered = sys.argv[1], sys.argv[2], sys.argv[3]
 parts = []
 if conflicted:
     parts.append(
@@ -112,8 +127,15 @@ if failing:
         + 'Fix the failing checks before ending the session, or start a '
         + 'background gh pr checks --watch task if a fix is already pushed.'
     )
+if unanswered:
+    parts.append(
+        'Review threads on a PR this session pushed are waiting on a reply: '
+        + unanswered
+        + 'Reply to each one and resolve it, or reply explaining why it stays '
+        + 'open for the reviewer.'
+    )
 parts.append('Never merge.')
 print(json.dumps({'decision': 'block', 'reason': ' '.join(parts)}))
-" "$FAILING" "$CONFLICTED" 2>/dev/null
+" "$FAILING" "$CONFLICTED" "$UNANSWERED" 2>/dev/null
 
 exit 0

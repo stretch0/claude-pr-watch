@@ -63,6 +63,11 @@ invocation does a full pass and ends with a status report.
 - A failure class has hit its 3-attempt cap.
 - The feedback is security-related or touches deployment.
 
+When you escalate a review thread, also reply in the thread saying it is
+waiting on a human decision. The plugin's stop hook counts unresolved threads
+whose last comment is not yours, so an unanswered escalated thread keeps
+blocking the session from ending.
+
 ## Audit trail
 
 Every push or thread resolution made by a pass gets a PR comment naming what

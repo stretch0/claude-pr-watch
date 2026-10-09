@@ -25,17 +25,24 @@ case "$INPUT" in
     *) exit 0 ;;
 esac
 
-PARSED=$(echo "$INPUT" | python3 -c "
-import json, sys
+PARSED=$(python3 - "$INPUT" <<'PY' 2>/dev/null
+import json
+import sys
+
 try:
-    data = json.load(sys.stdin)
-    tool_input = data.get('tool_input', data)
-    print(tool_input.get('command', '').replace('\n', ' '))
-    print(data.get('cwd', ''))
-    print(data.get('session_id', ''))
+    data = json.loads(sys.argv[1])
+    command = data.get("tool_input", data).get("command", "")
+    # Flatten to one line for the regexes below. A backslash continuation
+    # joins its lines, and any other newline separates commands, so that
+    # `gh pr create` on its own line after a heredoc still sits in command
+    # position.
+    print(command.replace("\\\n", " ").replace("\n", " ; "))
+    print(data.get("cwd", ""))
+    print(data.get("session_id", ""))
 except Exception:
     pass
-" 2>/dev/null) || exit 0
+PY
+) || exit 0
 
 { read -r COMMAND; read -r CWD; read -r SESSION_ID; } <<< "$PARSED"
 
@@ -97,11 +104,17 @@ if [[ -z "$PR_JSON" ]] && [[ "$EVENT" == "push" ]]; then
     exit 0
 fi
 
-python3 - "$BRANCH" "$SHA" "$SIG" "$PR_JSON" <<'PY' 2>/dev/null || exit 0
+AWAITING=""
+PR_URL=$(echo "$PR_JSON" | python3 -c "import json, sys; print(json.load(sys.stdin)['url'])" 2>/dev/null || echo "")
+if [[ -n "$PR_URL" ]]; then
+    AWAITING=$(cd "$CWD" && python3 "$(dirname "$0")/awaiting_review_threads.py" "$PR_URL" 2>/dev/null || echo "")
+fi
+
+python3 - "$BRANCH" "$SHA" "$SIG" "$PR_JSON" "$AWAITING" <<'PY' 2>/dev/null || exit 0
 import json
 import sys
 
-branch, sha, sig, pr_raw = sys.argv[1:5]
+branch, sha, sig, pr_raw, awaiting = sys.argv[1:6]
 
 lines = [f"A push/PR event just ran on branch `{branch}` (HEAD {sha[:12]})."]
 
@@ -140,6 +153,11 @@ if conflicting:
         "(this branch owns its new code, the base owns shared config), re-run "
         "the affected checks, and push with --force-with-lease. A hunk you "
         "cannot attribute is the user's call, not a guess."
+    )
+if awaiting.isdigit() and int(awaiting) > 0:
+    lines.append(
+        f"- {awaiting} review thread(s) are unresolved and waiting on a reply. "
+        f"Run /pr-watch:babysit-pr {number} to answer and resolve them."
     )
 if sig not in ("true", "skipped"):
     lines.append(
